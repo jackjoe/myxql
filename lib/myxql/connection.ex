@@ -16,7 +16,8 @@ defmodule MyXQL.Connection do
     ping_timeout: 15_000,
     prepare: :named,
     queries: nil,
-    transaction_status: :idle
+    transaction_status: :idle,
+    last_query: nil
   ]
 
   @impl true
@@ -71,11 +72,13 @@ defmodule MyXQL.Connection do
 
   @impl true
   def handle_prepare(query, opts, state) do
-    query = if state.prepare == :unnamed, do: %{query | name: ""}, else: query
+    query = rename_query(state, query)
 
     if cached_query = queries_get(state, query) do
-      {:ok, cached_query, state}
+      {:ok, cached_query, %{state | last_query: cached_query}}
     else
+      state = maybe_close(query, state)
+
       case prepare(query, state) do
         {:ok, query, state} ->
           {:ok, query, state}
@@ -96,6 +99,8 @@ defmodule MyXQL.Connection do
 
   @impl true
   def handle_execute(%Query{} = query, params, _opts, state) do
+    state = maybe_close(query, state)
+
     with {:ok, query, state} <- maybe_reprepare(query, state),
          result =
            Client.com_stmt_execute(
@@ -103,9 +108,8 @@ defmodule MyXQL.Connection do
              query.statement_id,
              params,
              :cursor_type_no_cursor
-           ),
-         {:ok, query, result, state} <- result(result, query, state) do
-      maybe_close(query, result, state)
+           ) do
+      result(result, query, state)
     end
   end
 
@@ -116,12 +120,7 @@ defmodule MyXQL.Connection do
 
   @impl true
   def handle_close(%Query{} = query, _opts, state) do
-    if cached_query = queries_get(state, query) do
-      state = close(cached_query, state)
-      {:ok, nil, state}
-    else
-      {:ok, nil, state}
-    end
+    {:ok, nil, close(query, state)}
   end
 
   @impl true
@@ -187,21 +186,26 @@ defmodule MyXQL.Connection do
 
   @impl true
   def handle_declare(query, params, _opts, state) do
-    cursor = %Cursor{ref: make_ref()}
-    state = %{state | cursors: Map.put(state.cursors, cursor.ref, {:params, params})}
-    {:ok, query, cursor, state}
+    with {:ok, query, state} <- maybe_reprepare(query, state) do
+      cursor = %Cursor{ref: make_ref()}
+
+      state = %{
+        state
+        | cursors: Map.put(state.cursors, cursor.ref, {:params, params, query.statement_id})
+      }
+
+      {:ok, query, cursor, state}
+    end
   end
 
   @impl true
   def handle_fetch(query, %Cursor{ref: cursor_ref}, opts, state) do
-    query = queries_fetch!(state, query)
-
     case Map.fetch!(state.cursors, cursor_ref) do
-      {:params, params} ->
-        fetch_first(query, cursor_ref, params, opts, state)
+      {:params, params, statement_id} ->
+        fetch_first(%{query | statement_id: statement_id}, cursor_ref, params, opts, state)
 
-      {:column_defs, column_defs} ->
-        fetch_next(query, cursor_ref, column_defs, opts, state)
+      {:column_defs, column_defs, statement_id} ->
+        fetch_next(%{query | statement_id: statement_id}, cursor_ref, column_defs, opts, state)
     end
   end
 
@@ -209,7 +213,10 @@ defmodule MyXQL.Connection do
     case Client.com_stmt_execute(state.client, query.statement_id, params, :cursor_type_read_only) do
       {:ok, resultset(column_defs: column_defs, status_flags: status_flags)} = result ->
         {:ok, _query, result, state} = result(result, query, state)
-        cursors = Map.put(state.cursors, cursor_ref, {:column_defs, column_defs})
+
+        cursors =
+          Map.put(state.cursors, cursor_ref, {:column_defs, column_defs, query.statement_id})
+
         state = put_status(%{state | cursors: cursors}, status_flags)
 
         if has_status_flag?(status_flags, :server_status_cursor_exists) do
@@ -244,17 +251,17 @@ defmodule MyXQL.Connection do
   end
 
   @impl true
-  def handle_deallocate(query, _cursor, _opts, state) do
-    if cached_query = queries_get(state, query) do
-      case Client.com_stmt_reset(state.client, cached_query.statement_id) do
-        {:ok, ok_packet(status_flags: status_flags)} ->
-          {:ok, nil, put_status(state, status_flags)}
+  def handle_deallocate(%{name: ""} = query, _cursor, _opts, state) do
+    {:ok, nil, close(query, state)}
+  end
 
-        other ->
-          result(other, query, state)
-      end
-    else
-      {:ok, nil, state}
+  def handle_deallocate(query, _cursor, _opts, state) do
+    case Client.com_stmt_reset(state.client, query.statement_id) do
+      {:ok, ok_packet(status_flags: status_flags)} ->
+        {:ok, nil, put_status(state, status_flags)}
+
+      other ->
+        result(other, query, state)
     end
   end
 
@@ -399,6 +406,10 @@ defmodule MyXQL.Connection do
     %{state | transaction_status: transaction_status(status_flags)}
   end
 
+  defp rename_query(%{prepare: :force_named}, query), do: %{query | name: "force_named"}
+  defp rename_query(%{prepare: :named}, query), do: query
+  defp rename_query(%{prepare: :unnamed}, query), do: %{query | name: ""}
+
   defp queries_new(), do: :ets.new(__MODULE__, [:set, :public])
 
   defp queries_put(state, %Query{cache: :reference} = query) do
@@ -412,8 +423,6 @@ defmodule MyXQL.Connection do
     end
   end
 
-  defp queries_put(%{prepare: :unnamed}, %Query{cache: :statement}), do: :ok
-
   defp queries_put(state, %Query{cache: :statement} = query) do
     try do
       :ets.insert(state.queries, {cache_key(query), query})
@@ -424,8 +433,6 @@ defmodule MyXQL.Connection do
       true -> :ok
     end
   end
-
-  defp queries_delete(%{prepare: :unnamed}, %Query{cache: :statement}), do: :ok
 
   defp queries_delete(state, %Query{} = query) do
     try do
@@ -446,18 +453,12 @@ defmodule MyXQL.Connection do
     end
   end
 
-  defp queries_get(%{prepare: :unnamed}, %Query{cache: :statement}), do: nil
-
   defp queries_get(state, %{cache: :statement} = query) do
     try do
       :ets.lookup_element(state.queries, cache_key(query), 2)
     rescue
       ArgumentError -> nil
     end
-  end
-
-  defp queries_fetch!(state, query) do
-    queries_get(state, query) || raise ArgumentError, "cannot fetch query #{inspect(query)}"
   end
 
   defp cache_key(%MyXQL.Query{cache: :reference, ref: ref}), do: ref
@@ -468,11 +469,15 @@ defmodule MyXQL.Connection do
       {:ok, com_stmt_prepare_ok(statement_id: statement_id, num_params: num_params)} ->
         query = %{query | num_params: num_params, statement_id: statement_id}
         queries_put(state, query)
-        {:ok, query, state}
+        {:ok, query, %{state | last_query: query}}
 
       result ->
         result(result, query, state)
     end
+  end
+
+  defp maybe_reprepare(%{ref: ref}, %{last_query: %{ref: ref}} = state) do
+    {:ok, state.last_query, state}
   end
 
   defp maybe_reprepare(query, state) do
@@ -489,19 +494,18 @@ defmodule MyXQL.Connection do
     end
   end
 
-  # Close unnamed queries after executing them
-  defp maybe_close(%Query{name: ""} = query, result, state) do
-    state = close(query, state)
-    {:ok, query, result, state}
+  defp maybe_close(%{ref: ref}, %{last_query: %{ref: ref}} = state), do: state
+
+  defp maybe_close(_query, %{prepare: :unnamed, last_query: last_query} = state)
+       when last_query != nil do
+    close(last_query, state)
   end
 
-  defp maybe_close(query, result, state) do
-    {:ok, query, result, state}
-  end
+  defp maybe_close(_query, state), do: state
 
   defp close(query, state) do
     :ok = Client.com_stmt_close(state.client, query.statement_id)
     queries_delete(state, query)
-    state
+    %{state | last_query: nil}
   end
 end

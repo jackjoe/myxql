@@ -59,20 +59,6 @@ defmodule MyXQLTest do
              end) =~ "** (DBConnection.ConnectionError) no such file or directory \"/bad\""
     end
 
-    @tag capture_log: true
-    test "connect with SSL but without starting :ssl" do
-      Application.stop(:ssl)
-
-      assert_raise RuntimeError,
-                   ~r"cannot be established because `:ssl` application is not started",
-                   fn ->
-                     opts = [ssl: true] ++ @opts
-                     MyXQL.start_link(opts)
-                   end
-    after
-      Application.ensure_all_started(:ssl)
-    end
-
     test "custom socket options" do
       opts = [socket_options: [buffer: 4]] ++ @opts
       {:ok, conn} = MyXQL.start_link(opts)
@@ -189,6 +175,40 @@ defmodule MyXQLTest do
     end
   end
 
+  describe ":prepare option" do
+    test ":named" do
+      {:ok, pid} = MyXQL.start_link(@opts ++ [prepare: :named])
+      {:ok, query} = MyXQL.prepare(pid, "1", "SELECT 1")
+      {:ok, query2, _} = MyXQL.execute(pid, query, [])
+      assert query == query2
+      {:ok, query3, _} = MyXQL.execute(pid, query, [])
+      assert query == query3
+    end
+
+    test ":unnamed" do
+      {:ok, pid} = MyXQL.start_link(@opts ++ [prepare: :unnamed])
+      {:ok, query} = MyXQL.prepare(pid, "1", "SELECT 1")
+      {:ok, query2, _} = MyXQL.execute(pid, query, [])
+      assert query == query2
+      {:ok, query3, _} = MyXQL.execute(pid, query, [])
+      assert query2.ref == query3.ref
+      assert query2.statement_id == query3.statement_id
+
+      {:ok, query4} = MyXQL.prepare(pid, "2", "SELECT 2")
+      assert query3.ref != query4.ref
+      assert query3.statement_id != query4.statement_id
+    end
+
+    test ":force_named" do
+      {:ok, pid} = MyXQL.start_link(@opts ++ [prepare: :force_named])
+      {:ok, query} = MyXQL.prepare(pid, "", "SELECT 1")
+      {:ok, query2, _} = MyXQL.execute(pid, query, [])
+      assert query == query2
+      {:ok, query3, _} = MyXQL.execute(pid, query, [])
+      assert query == query3
+    end
+  end
+
   describe "prepared queries" do
     setup [:connect, :truncate]
 
@@ -277,31 +297,6 @@ defmodule MyXQLTest do
       {_query, result} = MyXQL.prepare_execute!(c.conn, "", "SELECT x FROM integers")
       assert List.flatten(result.rows) == Enum.to_list(1..num)
       assert result.num_rows == num
-    end
-
-    test "named and unnamed queries" do
-      # {:ok, pid} = MyXQL.start_link(@opts ++ [prepare: :named])
-      # {:ok, query} = MyXQL.prepare(pid, "1", "SELECT 1")
-      # {:ok, query2, _} = MyXQL.execute(pid, query, [])
-      # assert query == query2
-      # {:ok, query3, _} = MyXQL.execute(pid, query, [])
-      # assert query == query3
-
-      # # unnamed queries are closed
-      # {:ok, query} = MyXQL.prepare(pid, "", "SELECT 1")
-      # {:ok, query2, _} = MyXQL.execute(pid, query, [])
-      # assert query == query2
-      # {:ok, query3, _} = MyXQL.execute(pid, query, [])
-      # assert query2.ref == query3.ref
-      # assert query2.statement_id != query3.statement_id
-
-      {:ok, pid} = MyXQL.start_link(@opts ++ [prepare: :unnamed])
-      {:ok, query} = MyXQL.prepare(pid, "1", "SELECT 1")
-      {:ok, query2, _} = MyXQL.execute(pid, query, [])
-      assert query == query2
-      {:ok, query3, _} = MyXQL.execute(pid, query, [])
-      assert query2.ref == query3.ref
-      assert query2.statement_id != query3.statement_id
     end
 
     test "statement cache", c do

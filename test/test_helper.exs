@@ -148,19 +148,21 @@ defmodule TestHelper do
   end
 
   def available_auth_plugins() do
-    "SELECT plugin_name FROM information_schema.plugins WHERE plugin_type = 'authentication'"
-    |> mysql!()
-    |> String.split("\n", trim: true)
-    |> Enum.drop(1)
-    |> Enum.map(&String.to_atom/1)
+    sql =
+      "SELECT plugin_name FROM information_schema.plugins WHERE plugin_type = 'authentication'"
+
+    for %{"plugin_name" => plugin_name} <- mysql!(sql) do
+      String.to_atom(plugin_name)
+    end
   end
 
   def supports_ssl?() do
-    mysql!("SELECT @@have_ssl") == "@@have_ssl\nYES\n"
+    mysql!("SELECT @@have_ssl") == [%{"@@have_ssl" => "YES"}]
   end
 
   def supports_public_key_exchange?() do
-    mysql!("SHOW STATUS LIKE 'Rsa_public_key'") != ""
+    result = mysql!("SHOW STATUS LIKE 'Rsa_public_key'")
+    match?([%{"Value" => "-----BEGIN PUBLIC KEY-----" <> _}], result)
   end
 
   def supports_json?() do
@@ -169,12 +171,8 @@ defmodule TestHelper do
 
     case mysql(sql) do
       {:ok, result} ->
-        row =
-          result
-          |> String.split("\n", trim: true)
-          |> Enum.at(1)
-
-        row =~ "json\tjson"
+        [%{"Type" => type}] = result
+        type == "json"
 
       {:error, _} ->
         false
@@ -201,7 +199,21 @@ defmodule TestHelper do
         --user=root
       ) ++ ["-e", sql]
 
-    cmd(["mysql" | args], options)
+    with {:ok, result} <- cmd(["mysql" | args], options) do
+      rows =
+        result
+        |> String.split("\n", trim: true)
+        |> Enum.map(&String.split(&1, "\t"))
+
+      case rows do
+        [] ->
+          {:ok, []}
+
+        [columns | rows] ->
+          rows = Enum.map(rows, &Map.new(Enum.zip(columns, &1)))
+          {:ok, rows}
+      end
+    end
   end
 
   def cmd([command | args], options) do
@@ -219,7 +231,8 @@ defmodule TestHelper do
   def excludes() do
     supported_auth_plugins = [:mysql_native_password, :sha256_password, :caching_sha2_password]
     available_auth_plugins = available_auth_plugins()
-    mariadb? = mysql!("select @@version") =~ ~r"mariadb"i
+    [%{"@@version" => version}] = mysql!("select @@version")
+    mariadb? = version =~ ~r"mariadb"i
 
     exclude =
       for plugin <- supported_auth_plugins,
