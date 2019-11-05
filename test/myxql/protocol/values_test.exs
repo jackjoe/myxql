@@ -282,7 +282,7 @@ defmodule MyXQL.Protocol.ValueTest do
             statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
             %MyXQL.Result{last_insert_id: id1} = query!(c, statement, [poly1])
 
-            poly2 = "MULTIPOLYGON(((0 0,10 0,10 10,0 10,0 0)))"
+            poly2 = "POLYGON((0 0,10 0,10 10,0 10,0 0))"
             statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
             %MyXQL.Result{last_insert_id: id2} = query!(c, statement, [poly2])
 
@@ -310,21 +310,27 @@ defmodule MyXQL.Protocol.ValueTest do
 
             statement1 = "SELECT my_geom FROM test_types WHERE id = '#{id1}'"
             %MyXQL.Result{rows: [values]} = query!(c, statement1)
+            IO.inspect(values)
 
             statement2 = "SELECT my_geom FROM test_types WHERE id = '#{id2}'"
             %MyXQL.Result{rows: [values]} = query!(c, statement2)
+            IO.inspect(values)
 
             statement3 = "SELECT my_geom FROM test_types WHERE id = '#{id3}'"
             %MyXQL.Result{rows: [values]} = query!(c, statement3)
+            IO.inspect(values)
 
             statement4 = "SELECT my_geom FROM test_types WHERE id = '#{id4}'"
             %MyXQL.Result{rows: [values]} = query!(c, statement4)
+            IO.inspect(values)
 
             statement5 = "SELECT my_geom FROM test_types WHERE id = '#{id5}'"
             %MyXQL.Result{rows: [values]} = query!(c, statement5)
+            IO.inspect(values)
 
             statement6 = "SELECT my_geom FROM test_types WHERE id = '#{id6}'"
             %MyXQL.Result{rows: [values]} = query!(c, statement6)
+            IO.inspect(values)
 
           _ ->
             c
