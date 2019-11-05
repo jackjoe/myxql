@@ -84,6 +84,9 @@ defmodule MyXQL.Protocol.Values do
   defp column_def_to_type(column_def(type: :mysql_type_bit, length: length)), do: {:bit, length}
   defp column_def_to_type(column_def(type: :mysql_type_null)), do: :null
 
+  # geometry
+  defp column_def_to_type(column_def(type: :mysql_type_geometry)), do: :geometry
+
   # Text values
 
   def decode_text_row(values, column_defs) do
@@ -357,6 +360,40 @@ defmodule MyXQL.Protocol.Values do
 
   defp decode_binary_row(<<r::bits>>, null_bitmap, [:datetime | t], acc),
     do: decode_datetime(r, null_bitmap, t, acc, :datetime)
+
+  # Geo
+  defp decode_geometry(wkb) do
+    wkb
+    |> Base.encode16()
+    |> Geo.WKB.decode()
+    |> case do
+      {:ok, geo} ->
+        [geo]
+
+      _ ->
+        :error
+    end
+  end
+
+  # https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
+  # defp decode_json(<<n::uint1, v::string(n), r::bits>>, null_bitmap, t, acc) when n < 251,
+
+  defp decode_binary_row(<<n::uint1, _srid::uint4, wkb::bits>>, _, [:geometry | t], _)
+       when n < 251 do
+    decode_geometry(wkb)
+  end
+
+  defp decode_binary_row(<<0xFC, _::uint2, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
+    decode_geometry(wkb)
+  end
+
+  defp decode_binary_row(<<0xFD, _::uint3, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
+    decode_geometry(wkb)
+  end
+
+  defp decode_binary_row(<<0xFE, _::uint8, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
+    decode_geometry(wkb)
+  end
 
   defp decode_binary_row(<<r::bits>>, null_bitmap, [{:bit, size} | t], acc),
     do: decode_bit(r, size, null_bitmap, t, acc)

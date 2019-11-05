@@ -123,6 +123,7 @@ defmodule TestHelper do
       my_tinyblob TINYBLOB,
       my_mediumblob MEDIUMBLOB,
       my_longblob LONGBLOB,
+      my_geom GEOMETRY,
       #{if supports_json?(), do: "my_json JSON,", else: ""}
       my_char CHAR
     );
