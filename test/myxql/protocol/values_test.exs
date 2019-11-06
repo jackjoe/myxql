@@ -308,28 +308,36 @@ defmodule MyXQL.Protocol.ValueTest do
             statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
             %MyXQL.Result{last_insert_id: id6} = query!(c, statement, [poly6])
 
-            statement1 = "SELECT my_geom FROM test_types WHERE id = '#{id1}'"
-            %MyXQL.Result{rows: [values]} = query!(c, statement1)
-            IO.inspect(values)
+            point = "POINT(4.35600830735108 50.8346308354481)"
+            statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
+            %MyXQL.Result{last_insert_id: id7} = query!(c, statement, [point])
 
-            statement2 = "SELECT my_geom FROM test_types WHERE id = '#{id2}'"
-            %MyXQL.Result{rows: [values]} = query!(c, statement2)
-            IO.inspect(values)
+            # statement1 = "SELECT my_geom FROM test_types WHERE id = '#{id1}'"
+            # %MyXQL.Result{rows: [values]} = query!(c, statement1)
+            # IO.inspect(values)
+            #
+            # statement2 = "SELECT my_geom FROM test_types WHERE id = '#{id2}'"
+            # %MyXQL.Result{rows: [values]} = query!(c, statement2)
+            # IO.inspect(values)
+            #
+            # statement3 = "SELECT my_geom FROM test_types WHERE id = '#{id3}'"
+            # %MyXQL.Result{rows: [values]} = query!(c, statement3)
+            # IO.inspect(values)
+            #
+            # statement4 = "SELECT my_geom FROM test_types WHERE id = '#{id4}'"
+            # %MyXQL.Result{rows: [values]} = query!(c, statement4)
+            # IO.inspect(values)
+            #
+            # statement5 = "SELECT my_geom FROM test_types WHERE id = '#{id5}'"
+            # %MyXQL.Result{rows: [values]} = query!(c, statement5)
+            # IO.inspect(values)
+            #
+            # statement6 = "SELECT my_geom FROM test_types WHERE id = '#{id6}'"
+            # %MyXQL.Result{rows: [values]} = query!(c, statement6)
+            # IO.inspect(values)
 
-            statement3 = "SELECT my_geom FROM test_types WHERE id = '#{id3}'"
-            %MyXQL.Result{rows: [values]} = query!(c, statement3)
-            IO.inspect(values)
-
-            statement4 = "SELECT my_geom FROM test_types WHERE id = '#{id4}'"
-            %MyXQL.Result{rows: [values]} = query!(c, statement4)
-            IO.inspect(values)
-
-            statement5 = "SELECT my_geom FROM test_types WHERE id = '#{id5}'"
-            %MyXQL.Result{rows: [values]} = query!(c, statement5)
-            IO.inspect(values)
-
-            statement6 = "SELECT my_geom FROM test_types WHERE id = '#{id6}'"
-            %MyXQL.Result{rows: [values]} = query!(c, statement6)
+            statement7 = "SELECT my_geom FROM test_types WHERE id = '#{id7}'"
+            %MyXQL.Result{rows: [values]} = query!(c, statement7)
             IO.inspect(values)
 
           _ ->
@@ -399,10 +407,7 @@ defmodule MyXQL.Protocol.ValueTest do
 
   defp insert_and_get(c, field, value) do
     id = insert(c, field, value)
-    g = get(c, field, id)
-    IO.puts("GET")
-    IO.inspect(g)
-    g
+    get(c, field, id)
   end
 
   defp assert_discrepancy(field, text: expected_text, binary: expected_binary)

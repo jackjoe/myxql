@@ -378,6 +378,26 @@ defmodule MyXQL.Protocol.Values do
   # https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
   # defp decode_json(<<n::uint1, v::string(n), r::bits>>, null_bitmap, t, acc) when n < 251,
 
+  # Point
+  defp decode_binary_row(
+         <<n::uint1, _srid::uint4, 1::uint1, 1::uint4, x::little-float-64, y::little-float-64>> =
+           raw,
+         _,
+         [:geometry | t],
+         _
+       )
+       when n < 251 do
+    IO.puts(">> point!!")
+    IO.inspect(x)
+    # concat wkb with geo type again
+    # wkb = <<1::uint1, 1::uint4>> <> wkb
+    # IO.puts("wkb") IO.inspect(wkb)
+    # IO.puts("wkb concat")
+    # IO.inspect(wkb2)
+    [%Geo.Point{coordinates: {x, y}, properties: %{}, srid: nil}]
+    # decode_geometry(wkb)
+  end
+
   defp decode_binary_row(<<n::uint1, _srid::uint4, wkb::bits>>, _, [:geometry | t], _)
        when n < 251 do
     decode_geometry(wkb)
