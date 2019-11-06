@@ -380,15 +380,16 @@ defmodule MyXQL.Protocol.Values do
 
   # Point
   defp decode_binary_row(
-         <<n::uint1, _srid::uint4, 1::uint1, 1::uint4, x::little-float-64, y::little-float-64>> =
-           raw,
+         <<n::uint1, _srid::uint4, 1::uint1, 1::uint4, x::little-float-64, y::little-float-64,
+           r::bits>>,
          _,
          [:geometry | t],
          _
        )
        when n < 251 do
     IO.puts(">> point!!")
-    IO.inspect(x)
+    tmp = <<1::uint1, 1::uint4, x::little-float-64, y::little-float-64>>
+    IO.inspect(tmp)
     # concat wkb with geo type again
     # wkb = <<1::uint1, 1::uint4>> <> wkb
     # IO.puts("wkb") IO.inspect(wkb)
@@ -400,18 +401,22 @@ defmodule MyXQL.Protocol.Values do
 
   defp decode_binary_row(<<n::uint1, _srid::uint4, wkb::bits>>, _, [:geometry | t], _)
        when n < 251 do
+    IO.puts(">> no point 1")
     decode_geometry(wkb)
   end
 
   defp decode_binary_row(<<0xFC, _::uint2, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
+    IO.puts(">> no point 2")
     decode_geometry(wkb)
   end
 
   defp decode_binary_row(<<0xFD, _::uint3, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
+    IO.puts(">> no point 3")
     decode_geometry(wkb)
   end
 
   defp decode_binary_row(<<0xFE, _::uint8, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
+    IO.puts(">> no point 4")
     decode_geometry(wkb)
   end
 
