@@ -368,7 +368,7 @@ defmodule MyXQL.Protocol.Values do
     |> Geo.WKB.decode()
     |> case do
       {:ok, geo} ->
-        geo
+        [geo]
 
       {:error, reason} ->
         {:error, {wkb, reason}}

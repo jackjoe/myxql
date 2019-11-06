@@ -399,7 +399,10 @@ defmodule MyXQL.Protocol.ValueTest do
 
   defp insert_and_get(c, field, value) do
     id = insert(c, field, value)
-    get(c, field, id)
+    g = get(c, field, id)
+    IO.puts("GET")
+    IO.inspect(g)
+    g
   end
 
   defp assert_discrepancy(field, text: expected_text, binary: expected_binary)
