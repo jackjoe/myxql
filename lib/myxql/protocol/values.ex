@@ -370,8 +370,8 @@ defmodule MyXQL.Protocol.Values do
       {:ok, geo} ->
         geo
 
-      _ ->
-        :error
+      {:error, reason} ->
+        {:error, {wkb, reason}}
     end
   end
 
