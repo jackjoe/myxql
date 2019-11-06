@@ -395,7 +395,7 @@ defmodule MyXQL.Protocol.Values do
     # IO.puts("wkb") IO.inspect(wkb)
     # IO.puts("wkb concat")
     # IO.inspect(wkb2)
-    %Geo.Point{coordinates: {x, y}, properties: %{}, srid: nil}
+    [%Geo.Point{coordinates: {x, y}, properties: %{}, srid: nil}]
     # decode_geometry(wkb)
   end
 
