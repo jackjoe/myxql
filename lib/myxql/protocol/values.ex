@@ -464,9 +464,12 @@ defmodule MyXQL.Protocol.Values do
   # MultiPolygon decoding
 
   defp decode_multipolygon(
-         <<num_polygons::uint4, polygons::binary-size(num_polygons)-unit(128), r::bits>>,
+         <<num_polygons::uint4, r::bits>> = data,
          state
        ) do
+    IO.puts(">> decode multip start, polygons in MP: #{num_polygons}")
+    IO.inspect(data)
+    IO.inspect(r)
     decode_multipolygon(r, num_polygons, state, [])
   end
 
@@ -504,21 +507,21 @@ defmodule MyXQL.Protocol.Values do
     decode_multipolygon(rest, num_polygons - 1, state, [polygon | polygons])
   end
 
-  defp decode_multipolygon(
-         <<rest::bits>>,
-         num_polygons,
-         state,
-         polygons
-       ) do
-    IO.puts("==> step 6, #{num_polygons} polygons left")
-    IO.puts("==> dead end")
-    IO.inspect(rest)
-    # polygon = decode_multipolygon_rings(rest, num_rings, state, [])
-    # polygon = List.flatten(polygon)
-    # IO.puts("==> step 5, polygon")
-    # IO.inspect(polygon)
-    # decode_multipolygon(rest, num_polygons - 1, state, [polygon | polygons])
-  end
+  # defp decode_multipolygon(
+  #        <<rest::bits>>,
+  #        num_polygons,
+  #        state,
+  #        polygons
+  #      ) do
+  #   IO.puts("==> step 6, #{num_polygons} polygons left")
+  #   IO.puts("==> dead end")
+  #   IO.inspect(rest)
+  #   polygon = decode_multipolygon_rings(rest, num_rings, state, [])
+  #   polygon = List.flatten(polygon)
+  #   IO.puts("==> step 5, polygon")
+  #   # IO.inspect(polygon)
+  #   # decode_multipolygon(rest, num_polygons - 1, state, [polygon | polygons])
+  # end
 
   defp decode_multipolygon_rings(
          <<rest::bits>>,
