@@ -381,7 +381,7 @@ defmodule MyXQL.Protocol.Values do
   # Point
   defp decode_binary_row(
          <<n::uint1, _srid::uint4, 1::uint1, 1::uint4, x::little-float-64, y::little-float-64,
-           r::bits>>,
+           _r::bits>>,
          _,
          [:geometry | t],
          _
