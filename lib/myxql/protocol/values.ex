@@ -402,14 +402,12 @@ defmodule MyXQL.Protocol.Values do
   # MultiPolygon
   # <<len::uint1, srid::uint4, 1::uint1, 6::uint4, num_rings::uint4, rest::bits>>,
   defp decode_geometry(
-         <<srid::uint4, 1::uint1, 6::uint4, num_polygons::uint4, rest::bits>>,
+         <<srid::uint4, 1::uint1, 6::uint4, r::bits>>,
          null_bitmap,
          t,
          acc
        ) do
-    IO.puts("Decode MultiPolygon")
-    IO.puts("==> step 1, polygon count: #{num_polygons} polygons")
-    decode_multipolygon(rest, num_polygons, {srid, null_bitmap, t, acc}, [])
+    decode_multipolygon(r, {srid, null_bitmap, t, acc})
   end
 
   ### GEOMETRY HELPERS
@@ -465,7 +463,19 @@ defmodule MyXQL.Protocol.Values do
 
   # MultiPolygon decoding
 
+  defp decode_multipolygon(
+         <<srid::uint4, 1::uint1, 6::uint4, num_polygons::uint4, rest::bits>>,
+         0,
+         {srid, null_bitmap, t, acc}
+       ) do
+    # <<num_points::32-little, points::binary-size(num_points)-unit(128), rest::bits>>,
+    decode_multipolygon(r, num_polygons, state, [])
+  end
+
   defp decode_multipolygon(<<r::bits>>, 0, {srid, null_bitmap, t, acc}, polygons) do
+    IO.puts("Decode MultiPolygon")
+    IO.puts("==> step 1, polygon count: #{num_polygons} polygons")
+
     IO.puts("==> step 4, no polygons left")
     g = decode_geometry(r, null_bitmap, t, acc, true)
     IO.puts(">>> THE G")
