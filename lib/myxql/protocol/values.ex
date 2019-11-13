@@ -361,56 +361,96 @@ defmodule MyXQL.Protocol.Values do
   defp decode_binary_row(<<r::bits>>, null_bitmap, [:datetime | t], acc),
     do: decode_datetime(r, null_bitmap, t, acc, :datetime)
 
-  # Geo
-  defp decode_geometry(wkb) do
-    wkb
-    |> Base.encode16()
-    |> Geo.WKB.decode()
-    |> case do
-      {:ok, geo} ->
-        [geo]
-
-      {:error, reason} ->
-        {:error, {wkb, reason}}
-    end
-  end
-
   # https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
   # defp decode_json(<<n::uint1, v::string(n), r::bits>>, null_bitmap, t, acc) when n < 251,
 
+  defp decode_binary_row(<<r::bits>> = data, null_bitmap, [:geometry | t], acc) do
+    decode_geometry(r, null_bitmap, t, acc)
+  end
+
   # Point
-  defp decode_binary_row(
-         <<n::uint1, _srid::uint4, 1::uint1, 1::uint4, x::little-float-64, y::little-float-64,
+  defp decode_geometry(
+         <<len::uint1, _srid::uint4, 1::uint1, 1::uint4, x::little-float-64, y::little-float-64,
            r::bits>>,
          null_bitmap,
-         [:geometry | t],
+         t,
          acc
        )
-       when n < 251 do
+       when len < 251 do
     v = %Geo.Point{coordinates: {x, y}, properties: %{}, srid: nil}
     decode_binary_row(r, null_bitmap, t, [v | acc])
   end
 
-  defp decode_binary_row(<<n::uint1, _srid::uint4, wkb::bits>>, _, [:geometry | t], _)
-       when n < 251 do
-    IO.puts(">> no point 1")
-    decode_geometry(wkb)
+  defp decode_geometry(
+         <<len::uint1, srid::uint4, 1::uint1, 3::uint4, num_rings::uint4, rest::bits>>,
+         null_bitmap,
+         t,
+         acc
+       )
+       when len < 251 do
+    IO.puts(">> d3ecode rings")
+    decode_rings(rest, num_rings, {srid, t, null_bitmap, acc})
   end
 
-  defp decode_binary_row(<<0xFC, _::uint2, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
-    IO.puts(">> no point 2")
-    decode_geometry(wkb)
+  # defp decode_binary_row(<<0xFC, _::uint2, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
+  #   IO.puts(">> no point 2")
+  #   decode_geometry(wkb)
+  # end
+  #
+  # defp decode_binary_row(<<0xFD, _::uint3, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
+  #   IO.puts(">> no point 3")
+  #   decode_geometry(wkb)
+  # end
+  #
+  # defp decode_binary_row(<<0xFE, _::uint8, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
+  #   IO.puts(">> no point 4")
+  #   decode_geometry(wkb)
+  # end
+
+  ### GEOMETRY HELPERS
+
+  defp decode_rings(<<rings_and_rows::bits>>, num_rings, state) do
+    decode_rings(rings_and_rows, num_rings, state, [])
   end
 
-  defp decode_binary_row(<<0xFD, _::uint3, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
-    IO.puts(">> no point 3")
-    decode_geometry(wkb)
+  # myxql
+  # defp decode_binary_row(<<r::bits>>, null_bitmap, [:double | t], acc),
+  # mariaex
+  # defp decode_bin_rows(<<rest::bits>>, [_ | fields], nullint, acc, datetime, json_library)
+
+  defp decode_rings(
+         <<rest::bits>>,
+         0,
+         {srid, t, null_bitmap, acc},
+         rings
+       ) do
+    decode_binary_row(
+      rest,
+      t,
+      null_bitmap,
+      [%Geo.Polygon{coordinates: Enum.reverse(rings), srid: srid} | acc]
+    )
   end
 
-  defp decode_binary_row(<<0xFE, _::uint8, _srid::uint4, wkb::bits>>, _, [:geometry | _], _) do
-    IO.puts(">> no point 4")
-    decode_geometry(wkb)
+  defp decode_rings(
+         <<num_points::32-little, points::binary-size(num_points)-unit(128), rest::bits>>,
+         num_rings,
+         state,
+         rings
+       ) do
+    points = decode_points(points)
+    decode_rings(rest, num_rings - 1, state, [points | rings])
   end
+
+  defp decode_points(points_binary, points \\ [])
+
+  defp decode_points(<<x::little-float-64, y::little-float-64, rest::bits>>, points) do
+    decode_points(rest, [{x, y} | points])
+  end
+
+  defp decode_points(<<>>, points), do: Enum.reverse(points)
+
+  # end geometry helpers
 
   defp decode_binary_row(<<r::bits>>, null_bitmap, [{:bit, size} | t], acc),
     do: decode_bit(r, size, null_bitmap, t, acc)
