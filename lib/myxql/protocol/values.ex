@@ -429,13 +429,13 @@ defmodule MyXQL.Protocol.Values do
   end
 
   defp decode_rings(
-         <<rest::bits>>,
+         <<r::bits>>,
          0,
          {srid, null_bitmap, t, acc},
          rings
        ) do
     decode_binary_row(
-      rest,
+      r,
       null_bitmap,
       t,
       [rings | acc]
@@ -443,20 +443,20 @@ defmodule MyXQL.Protocol.Values do
   end
 
   defp decode_rings(
-         <<num_points::32-little, points::binary-size(num_points)-unit(128), rest::bits>>,
+         <<num_points::32-little, points::binary-size(num_points)-unit(128), r::bits>>,
          num_rings,
          state,
          nested,
          rings
        ) do
     points = decode_points(points)
-    decode_rings(rest, num_rings - 1, state, [points | rings], nested)
+    decode_rings(r, num_rings - 1, state, [points | rings], nested)
   end
 
   defp decode_points(points_binary, points \\ [])
 
-  defp decode_points(<<x::little-float-64, y::little-float-64, rest::bits>>, points) do
-    decode_points(rest, [{x, y} | points])
+  defp decode_points(<<x::little-float-64, y::little-float-64, r::bits>>, points) do
+    decode_points(r, [{x, y} | points])
   end
 
   defp decode_points(<<>>, points), do: Enum.reverse(points)
@@ -464,17 +464,15 @@ defmodule MyXQL.Protocol.Values do
   # MultiPolygon decoding
 
   defp decode_multipolygon(
-         <<srid::uint4, 1::uint1, 6::uint4, num_polygons::uint4, rest::bits>>,
-         0,
-         {srid, null_bitmap, t, acc}
+         <<num_polygons::uint4, polygons::binary-size(num_polygons)-unit(128), r::bits>>,
+         state
        ) do
-    # <<num_points::32-little, points::binary-size(num_points)-unit(128), rest::bits>>,
     decode_multipolygon(r, num_polygons, state, [])
   end
 
   defp decode_multipolygon(<<r::bits>>, 0, {srid, null_bitmap, t, acc}, polygons) do
     IO.puts("Decode MultiPolygon")
-    IO.puts("==> step 1, polygon count: #{num_polygons} polygons")
+    IO.puts("==> step 1, polygon count: #{0} polygons")
 
     IO.puts("==> step 4, no polygons left")
     g = decode_geometry(r, null_bitmap, t, acc, true)
