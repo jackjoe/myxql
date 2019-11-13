@@ -361,12 +361,12 @@ defmodule MyXQL.Protocol.Values do
   defp decode_binary_row(<<r::bits>>, null_bitmap, [:datetime | t], acc),
     do: decode_datetime(r, null_bitmap, t, acc, :datetime)
 
-  # https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
-  # defp decode_json(<<n::uint1, v::string(n), r::bits>>, null_bitmap, t, acc) when n < 251,
-
   defp decode_binary_row(<<r::bits>> = data, null_bitmap, [:geometry | t], acc) do
     decode_geometry(r, null_bitmap, t, acc)
   end
+
+  # https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
+  # defp decode_json(<<n::uint1, v::string(n), r::bits>>, null_bitmap, t, acc) when n < 251,
 
   # Point
   defp decode_geometry(
@@ -388,7 +388,6 @@ defmodule MyXQL.Protocol.Values do
          acc
        )
        when len < 251 do
-    IO.puts(">> d3ecode rings")
     decode_rings(rest, num_rings, {srid, t, null_bitmap, acc})
   end
 
@@ -418,6 +417,8 @@ defmodule MyXQL.Protocol.Values do
   # mariaex
   # defp decode_bin_rows(<<rest::bits>>, [_ | fields], nullint, acc, datetime, json_library)
 
+  # Geometry helpers, inspired (aka copied from) Mariaex. But, dissected and we understand what they do!
+
   defp decode_rings(
          <<rest::bits>>,
          0,
@@ -426,8 +427,8 @@ defmodule MyXQL.Protocol.Values do
        ) do
     decode_binary_row(
       rest,
-      t,
       null_bitmap,
+      t,
       [%Geo.Polygon{coordinates: Enum.reverse(rings), srid: srid} | acc]
     )
   end
