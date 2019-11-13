@@ -379,16 +379,16 @@ defmodule MyXQL.Protocol.Values do
   # defp decode_json(<<n::uint1, v::string(n), r::bits>>, null_bitmap, t, acc) when n < 251,
 
   # Point
-  # TODO: decide how to handle the _rest bits here...
   defp decode_binary_row(
          <<n::uint1, _srid::uint4, 1::uint1, 1::uint4, x::little-float-64, y::little-float-64,
-           _rest::bits>>,
-         _,
+           r::bits>>,
+         null_bitmap,
          [:geometry | t],
-         _
+         acc
        )
        when n < 251 do
-    [%Geo.Point{coordinates: {x, y}, properties: %{}, srid: nil}]
+    v = %Geo.Point{coordinates: {x, y}, properties: %{}, srid: nil}
+    decode_binary_row(r, null_bitmap, t, [v | acc])
   end
 
   defp decode_binary_row(<<n::uint1, _srid::uint4, wkb::bits>>, _, [:geometry | t], _)
