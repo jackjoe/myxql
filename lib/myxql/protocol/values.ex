@@ -384,7 +384,7 @@ defmodule MyXQL.Protocol.Values do
          acc,
          _
        ) do
-    v = %MyXQL.Geometry.Point{coordinates: {x, y}, properties: %{}, srid: nil}
+    v = %MyXQL.Geometry.Point{coordinates: {x, y}, srid: nil}
     decode_binary_row(r, null_bitmap, t, [v | acc])
   end
 
@@ -469,7 +469,7 @@ defmodule MyXQL.Protocol.Values do
 
   # no more left
   defp decode_multipolygon(<<r::bits>>, 0, {srid, null_bitmap, t, acc}, polygons) do
-    v = %MyXQL.Geometry.MultiPolygon{coordinates: polygons, properties: %{}, srid: nil}
+    v = %MyXQL.Geometry.MultiPolygon{coordinates: polygons, srid: nil}
     decode_binary_row(r, null_bitmap, t, [v | acc])
   end
 
