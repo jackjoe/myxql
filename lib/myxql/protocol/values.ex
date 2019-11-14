@@ -401,8 +401,9 @@ defmodule MyXQL.Protocol.Values do
          t,
          acc
        ) do
-    IO.puts("==> step 4, decode_geometry")
-    decode_rings(rest, num_rings, {srid, null_bitmap, t, acc})
+    rings = decode_rings(rest, num_rings, {srid, null_bitmap, t, acc})
+    v = %MyXQL.Geometry.Point{coordinates: rings, srid: nil}
+    decode_binary_row(<<>>, null_bitmap, t, [v | acc])
   end
 
   # MultiPolygon
@@ -427,7 +428,6 @@ defmodule MyXQL.Protocol.Values do
 
   # Helps to decode a Polygon, which consists of rings that themselves consist of points
   defp decode_rings(<<rings_and_rows::bits>>, num_rings, state) do
-    # IO.puts("==> step 5, decode_rings entry point")
     decode_rings(rings_and_rows, num_rings, state, [])
   end
 

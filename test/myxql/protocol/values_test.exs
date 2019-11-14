@@ -307,13 +307,12 @@ defmodule MyXQL.Protocol.ValueTest do
 
             statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
             %MyXQL.Result{last_insert_id: id5} = query!(c, statement, [poly5])
-            #
+
             # poly6 =
             #   "MULTIPOLYGON(((5.46639249614132 50.7825679563452,5.46648086576109 50.7824268222132,5.46658126441102 50.7823015575274,5.46649849778365 50.7822746242354,5.46630041201719 50.782531901568,5.46630037590025 50.7825319485142,5.46629805291237 50.7825349658385,5.46628044363781 50.7825590204891,5.46634273198418 50.7825795334677,5.46632746107774 50.7825981177191,5.46636558778128 50.7826109299592,5.46639249614132 50.7825679563452)))"
-            #
+
             # statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
             # %MyXQL.Result{last_insert_id: id6} = query!(c, statement, [poly6])
-            #
             point = "POINT(4.35600830735108 50.8346308354481)"
             statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
             %MyXQL.Result{last_insert_id: id7} = query!(c, statement, [point])
@@ -321,25 +320,23 @@ defmodule MyXQL.Protocol.ValueTest do
             # statement1 = "SELECT my_geom FROM test_types WHERE id = '#{id1}'"
             # %MyXQL.Result{rows: [values]} = query!(c, statement1)
             # IO.inspect(values)
-            #
-            # statement2 = "SELECT my_geom FROM test_types WHERE id = '#{id2}'"
-            # %MyXQL.Result{rows: [values]} = query!(c, statement2)
-            # IO.inspect(values)
+
+            statement2 = "SELECT my_geom FROM test_types WHERE id = '#{id2}'"
+            %MyXQL.Result{rows: [values]} = query!(c, statement2)
+            IO.inspect(values)
 
             # statement3 = "SELECT my_geom FROM test_types WHERE id = '#{id3}'"
             # %MyXQL.Result{rows: [values]} = query!(c, statement3)
             # IO.inspect(values)
 
-            #
             # statement4 = "SELECT my_geom FROM test_types WHERE id = '#{id4}'"
             # %MyXQL.Result{rows: [values]} = query!(c, statement4)
             # IO.inspect(values)
-            #
+
             statement5 = "SELECT my_geom FROM test_types WHERE id = '#{id5}'"
             %MyXQL.Result{rows: [values]} = query!(c, statement5)
             IO.inspect(values)
 
-          #
           # statement6 = "SELECT my_geom FROM test_types WHERE id = '#{id6}'"
           # %MyXQL.Result{rows: [values]} = query!(c, statement6)
           # IO.inspect(values)
