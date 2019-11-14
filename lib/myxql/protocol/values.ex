@@ -365,6 +365,13 @@ defmodule MyXQL.Protocol.Values do
     decode_geometry_head(r) |> decode_geometry(null_bitmap, t, acc)
   end
 
+  defp decode_binary_row(<<r::bits>>, null_bitmap, [{:bit, size} | t], acc),
+    do: decode_bit(r, size, null_bitmap, t, acc)
+
+  defp decode_binary_row(<<>>, _null_bitmap, [], acc) do
+    Enum.reverse(acc)
+  end
+
   @doc """
   0xFC = 252
   """
@@ -381,8 +388,7 @@ defmodule MyXQL.Protocol.Values do
          <<_srid::uint4, 1::uint1, 1::uint4, x::little-float-64, y::little-float-64, r::bits>>,
          null_bitmap,
          t,
-         acc,
-         _
+         acc
        ) do
     v = %MyXQL.Geometry.Point{coordinates: {x, y}, srid: nil}
     decode_binary_row(r, null_bitmap, t, [v | acc])
@@ -419,10 +425,7 @@ defmodule MyXQL.Protocol.Values do
 
   # Geometry helpers, inspired (aka copied from) Mariaex. But, dissected and we understand what they do!
 
-  @doc """
-  Helps to decode a Polygon, which consists of rings that themselves consist of points
-  """
-
+  # Helps to decode a Polygon, which consists of rings that themselves consist of points
   defp decode_rings(<<rings_and_rows::bits>>, num_rings, state) do
     # IO.puts("==> step 5, decode_rings entry point")
     decode_rings(rings_and_rows, num_rings, state, [])
@@ -431,7 +434,7 @@ defmodule MyXQL.Protocol.Values do
   defp decode_rings(
          <<r::bits>>,
          0,
-         {srid, null_bitmap, t, acc},
+         {_srid, null_bitmap, t, acc},
          rings
        ) do
     decode_binary_row(
@@ -446,11 +449,10 @@ defmodule MyXQL.Protocol.Values do
          <<num_points::32-little, points::binary-size(num_points)-unit(128), r::bits>>,
          num_rings,
          state,
-         nested,
          rings
        ) do
     points = decode_points(points)
-    decode_rings(r, num_rings - 1, state, [points | rings], nested)
+    decode_rings(r, num_rings - 1, state, [points | rings])
   end
 
   defp decode_points(points_binary, points \\ [])
@@ -469,7 +471,7 @@ defmodule MyXQL.Protocol.Values do
 
   # no more left
   defp decode_multipolygon(<<r::bits>>, 0, {srid, null_bitmap, t, acc}, polygons) do
-    v = %MyXQL.Geometry.MultiPolygon{coordinates: polygons, srid: nil}
+    v = %MyXQL.Geometry.MultiPolygon{coordinates: polygons, srid: srid}
     decode_binary_row(r, null_bitmap, t, [v | acc])
   end
 
@@ -489,7 +491,7 @@ defmodule MyXQL.Protocol.Values do
   defp decode_multipolygon_rings(
          <<rest::bits>>,
          0,
-         {srid, null_bitmap, t, acc},
+         {_, _, _, acc},
          rings
        ) do
     {rest, [Enum.reverse(rings) | acc]}
@@ -506,13 +508,6 @@ defmodule MyXQL.Protocol.Values do
   end
 
   # end geometry helpers
-
-  defp decode_binary_row(<<r::bits>>, null_bitmap, [{:bit, size} | t], acc),
-    do: decode_bit(r, size, null_bitmap, t, acc)
-
-  defp decode_binary_row(<<>>, _null_bitmap, [], acc) do
-    Enum.reverse(acc)
-  end
 
   defp decode_int1(<<v::int1, r::bits>>, null_bitmap, t, acc),
     do: decode_binary_row(r, null_bitmap >>> 1, t, [v | acc])
