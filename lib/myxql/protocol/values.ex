@@ -391,7 +391,7 @@ defmodule MyXQL.Protocol.Values do
          acc
        ) do
     v = %MyXQL.Geometry.Point{coordinates: {x, y}, srid: nil}
-    decode_binary_row(r, null_bitmap, t, [v | acc])
+    decode_binary_row(r, null_bitmap >>> 1, t, [v | acc])
   end
 
   # Polygon
@@ -403,7 +403,7 @@ defmodule MyXQL.Protocol.Values do
        ) do
     rings = decode_rings(rest, num_rings, {srid, null_bitmap, t, acc})
     v = %MyXQL.Geometry.Point{coordinates: rings, srid: nil}
-    decode_binary_row(<<>>, null_bitmap, t, [v | acc])
+    decode_binary_row(<<>>, null_bitmap >>> 1, t, [v | acc])
   end
 
   # MultiPolygon
@@ -419,30 +419,14 @@ defmodule MyXQL.Protocol.Values do
 
   ### GEOMETRY HELPERS
 
-  # myxql
-  # defp decode_binary_row(<<r::bits>>, null_bitmap, [:double | t], acc),
-  # mariaex
-  # defp decode_bin_rows(<<rest::bits>>, [_ | fields], nullint, acc, datetime, json_library)
-
   # Geometry helpers, inspired (aka copied from) Mariaex. But, dissected and we understand what they do!
-
   # Helps to decode a Polygon, which consists of rings that themselves consist of points
   defp decode_rings(<<rings_and_rows::bits>>, num_rings, state) do
     decode_rings(rings_and_rows, num_rings, state, [])
   end
 
-  defp decode_rings(
-         <<r::bits>>,
-         0,
-         {_srid, null_bitmap, t, acc},
-         rings
-       ) do
-    decode_binary_row(
-      r,
-      null_bitmap,
-      t,
-      [rings | acc]
-    )
+  defp decode_rings(<<r::bits>>, 0, {_srid, null_bitmap, t, acc}, rings) do
+    decode_binary_row(r, null_bitmap, t, [rings | acc])
   end
 
   defp decode_rings(
@@ -472,7 +456,7 @@ defmodule MyXQL.Protocol.Values do
   # no more left
   defp decode_multipolygon(<<r::bits>>, 0, {srid, null_bitmap, t, acc}, polygons) do
     v = %MyXQL.Geometry.MultiPolygon{coordinates: polygons, srid: srid}
-    decode_binary_row(r, null_bitmap, t, [v | acc])
+    decode_binary_row(r, null_bitmap >>> 1, t, [v | acc])
   end
 
   # polygons left in MP
