@@ -278,24 +278,24 @@ defmodule MyXQL.Protocol.ValueTest do
       test "test geometry", c do
         case c.protocol do
           :binary ->
-            # poly1 = "MULTIPOLYGON(((0 0,10 0,10 10,0 10,0 0),(0 0,10 0,10 10,0 10,0 0)))"
-            # statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
-            # %MyXQL.Result{last_insert_id: id1} = query!(c, statement, [poly1])
+            poly1 = "MULTIPOLYGON(((0 0,10 0,10 10,0 10,0 0),(0 0,10 0,10 10,0 10,0 0)))"
+            statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
+            %MyXQL.Result{last_insert_id: id1} = query!(c, statement, [poly1])
 
             poly2 = "POLYGON((0 0,10 0,10 10,0 10,0 0))"
             statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
             %MyXQL.Result{last_insert_id: id2} = query!(c, statement, [poly2])
 
-            # poly3 =
-            #   "MULTIPOLYGON(((5.69452560027133 50.7379352124801,5.69454686833822 50.7378245234409,5.69449407906953 50.737819619326,5.69446575401174 50.7379483977343,5.69452099841531 50.7379544428844,5.69452560027133 50.7379352124801)))"
-            #
-            # statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
-            # %MyXQL.Result{last_insert_id: id3} = query!(c, statement, [poly3])
-            #
-            # poly4 = "MULTIPOLYGON(((0 0,9 0,10 10,0 10,0 0), (0 0,9 0,10 10,0 10,0 0)))"
-            # statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
-            # %MyXQL.Result{last_insert_id: id4} = query!(c, statement, [poly4])
-            #
+            poly3 =
+              "MULTIPOLYGON(((5.69452560027133 50.7379352124801,5.69454686833822 50.7378245234409,5.69449407906953 50.737819619326,5.69446575401174 50.7379483977343,5.69452099841531 50.7379544428844,5.69452560027133 50.7379352124801)))"
+
+            statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
+            %MyXQL.Result{last_insert_id: id3} = query!(c, statement, [poly3])
+
+            poly4 = "MULTIPOLYGON(((0 0,9 0,10 10,0 10,0 0), (0 0,9 0,10 10,0 10,0 0)))"
+            statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
+            %MyXQL.Result{last_insert_id: id4} = query!(c, statement, [poly4])
+
             poly5 = "MULTIPOLYGON(
               ((102 2,103 2,103 3,102 3,102 2)),
               ((100 0,101 0,101 1,100 1,100 0))
@@ -317,21 +317,21 @@ defmodule MyXQL.Protocol.ValueTest do
             statement = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
             %MyXQL.Result{last_insert_id: id7} = query!(c, statement, [point])
 
-            # statement1 = "SELECT my_geom FROM test_types WHERE id = '#{id1}'"
-            # %MyXQL.Result{rows: [values]} = query!(c, statement1)
-            # IO.inspect(values)
+            statement1 = "SELECT my_geom FROM test_types WHERE id = '#{id1}'"
+            %MyXQL.Result{rows: [values]} = query!(c, statement1)
+            IO.inspect(values)
 
             statement2 = "SELECT my_geom FROM test_types WHERE id = '#{id2}'"
             %MyXQL.Result{rows: [values]} = query!(c, statement2)
             IO.inspect(values)
 
-            # statement3 = "SELECT my_geom FROM test_types WHERE id = '#{id3}'"
-            # %MyXQL.Result{rows: [values]} = query!(c, statement3)
-            # IO.inspect(values)
+            statement3 = "SELECT my_geom FROM test_types WHERE id = '#{id3}'"
+            %MyXQL.Result{rows: [values]} = query!(c, statement3)
+            IO.inspect(values)
 
-            # statement4 = "SELECT my_geom FROM test_types WHERE id = '#{id4}'"
-            # %MyXQL.Result{rows: [values]} = query!(c, statement4)
-            # IO.inspect(values)
+            statement4 = "SELECT my_geom FROM test_types WHERE id = '#{id4}'"
+            %MyXQL.Result{rows: [values]} = query!(c, statement4)
+            IO.inspect(values)
 
             statement5 = "SELECT my_geom FROM test_types WHERE id = '#{id5}'"
             %MyXQL.Result{rows: [values]} = query!(c, statement5)
