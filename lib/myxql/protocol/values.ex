@@ -381,8 +381,6 @@ defmodule MyXQL.Protocol.Values do
   def decode_geometry_head(<<_lt251::uint1, r::bits>>), do: r
 
   # https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
-  # defp decode_json(<<n::uint1, v::string(n), r::bits>>, null_bitmap, t, acc) when n < 251,
-
   # Point
   defp decode_geometry(
          <<_srid::uint4, 1::uint1, 1::uint4, x::little-float-64, y::little-float-64, r::bits>>,
@@ -407,7 +405,6 @@ defmodule MyXQL.Protocol.Values do
   end
 
   # MultiPolygon
-  # <<len::uint1, srid::uint4, 1::uint1, 6::uint4, num_rings::uint4, rest::bits>>,
   defp decode_geometry(
          <<srid::uint4, 1::uint1, 6::uint4, r::bits>>,
          null_bitmap,
