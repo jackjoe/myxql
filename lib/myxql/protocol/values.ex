@@ -374,6 +374,8 @@ defmodule MyXQL.Protocol.Values do
 
   @doc """
   0xFC = 252
+  0xFC = 253
+  0xFE = 254
   """
   def decode_geometry_head(<<0xFC, _::uint2, r::bits>>), do: r
   def decode_geometry_head(<<0xFD, _::uint3, r::bits>>), do: r
