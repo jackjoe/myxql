@@ -402,7 +402,7 @@ defmodule MyXQL.Protocol.Values do
          acc
        ) do
     rings = decode_rings(rest, num_rings, {srid, null_bitmap, t, acc})
-    v = %MyXQL.Geometry.Point{coordinates: rings, srid: nil}
+    v = %MyXQL.Geometry.Polygon{coordinates: rings, srid: nil}
     decode_binary_row(<<>>, null_bitmap >>> 1, t, [v | acc])
   end
 
