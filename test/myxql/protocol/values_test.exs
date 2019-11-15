@@ -297,7 +297,7 @@ defmodule MyXQL.Protocol.ValueTest do
 
   defp poly_roundtrip(c, wkt) do
     insert =
-      "INSERT INTO test_types (my_tinyint, my_smallint, my_geom, my_json) VALUES (1, 1, ST_GeomFromText(?), \"{}\")"
+      "INSERT INTO test_types (my_tinyint, my_smallint, my_geom) VALUES (1, 1, ST_GeomFromText(?))"
 
     %MyXQL.Result{last_insert_id: id} = query!(c, insert, [wkt])
 
