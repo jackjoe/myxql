@@ -280,13 +280,20 @@ defmodule MyXQL.Protocol.ValueTest do
           :binary ->
             geoms =
               [
-                "POLYGON((0 0,10 0,10 10,0 10,0 0))",
                 "POINT(1 1)",
+                "POLYGON((0 0,10 0,10 10,0 10,0 0))",
                 "MULTIPOLYGON(((0 0,10 0,10 10,0 10,0 0),(0 0,10 0,10 10,0 10,0 0)))",
                 "MULTIPOLYGON(((102 2,103 2,103 3,102 3,102 2)),((100 0,101 0,101 1,100 1,100 0)))"
               ]
               |> Enum.map(&poly_roundtrip(c, &1))
               |> Enum.map(&IO.inspect/1)
+
+            # full insert row and read test
+            insert = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
+            %MyXQL.Result{last_insert_id: id} = query!(c, insert, [wkt])
+
+            select = "SELECT * FROM test_types WHERE id = '#{id}'"
+            %MyXQL.Result{rows: [values]} = query!(c, select)
 
           _ ->
             c
@@ -296,14 +303,11 @@ defmodule MyXQL.Protocol.ValueTest do
   end
 
   defp poly_roundtrip(c, wkt) do
-    insert =
-      "INSERT INTO test_types (my_tinyint, my_smallint, my_geom) VALUES (1, 1, ST_GeomFromText(?))"
-
+    insert = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
     %MyXQL.Result{last_insert_id: id} = query!(c, insert, [wkt])
 
     select = "SELECT * FROM test_types WHERE id = '#{id}'"
     %MyXQL.Result{rows: [values]} = query!(c, select)
-    IO.inspect(values)
     [value] = values
     value
   end
