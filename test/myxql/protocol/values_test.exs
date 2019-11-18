@@ -295,16 +295,6 @@ defmodule MyXQL.Protocol.ValueTest do
     end
   end
 
-  defp poly_roundtrip(c, wkt) do
-    insert = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
-    %MyXQL.Result{last_insert_id: id} = query!(c, insert, [wkt])
-
-    select = "SELECT * FROM test_types WHERE id = '#{id}'"
-    %MyXQL.Result{rows: [values]} = query!(c, select)
-    [value] = values
-    value
-  end
-
   describe "text & binary discrepancies" do
     test "floats" do
       # 13.37 is returned as 13.3699... in binary protocol and conversely

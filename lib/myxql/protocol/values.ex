@@ -85,9 +85,6 @@ defmodule MyXQL.Protocol.Values do
   defp column_def_to_type(column_def(type: :mysql_type_null)), do: :null
   defp column_def_to_type(column_def(type: :mysql_type_geometry)), do: :geometry
 
-  # geometry
-  defp column_def_to_type(column_def(type: :mysql_type_geometry)), do: :geometry
-
   # Text values
 
   def decode_text_row(values, column_defs) do
@@ -384,10 +381,6 @@ defmodule MyXQL.Protocol.Values do
 
   defp decode_binary_row(<<r::bits>>, null_bitmap, [:datetime | t], acc),
     do: decode_datetime(r, null_bitmap, t, acc, :datetime)
-
-  defp decode_binary_row(<<r::bits>>, null_bitmap, [:geometry | t], acc) do
-    decode_geometry_head(r) |> decode_geometry(null_bitmap, t, acc)
-  end
 
   defp decode_binary_row(<<r::bits>>, null_bitmap, [{:bit, size} | t], acc),
     do: decode_bit(r, size, null_bitmap, t, acc)
