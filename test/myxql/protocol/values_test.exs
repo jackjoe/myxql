@@ -274,30 +274,23 @@ defmodule MyXQL.Protocol.ValueTest do
         assert_roundtrip(c, "my_char", "é")
       end
 
-      @tag :geometry
-      test "test geometry", c do
-        case c.protocol do
-          :binary ->
-            geoms =
-              [
-                "POINT(1 1)",
-                "POLYGON((0 0,10 0,10 10,0 10,0 0))",
-                "MULTIPOLYGON(((0 0,10 0,10 10,0 10,0 0),(0 0,10 0,10 10,0 10,0 0)))",
-                "MULTIPOLYGON(((102 2,103 2,103 3,102 3,102 2)),((100 0,101 0,101 1,100 1,100 0)))"
-              ]
-              |> Enum.map(&poly_roundtrip(c, &1))
-              |> Enum.map(&IO.inspect/1)
+      test "POINT", c do
+        assert_roundtrip(c, "my_point", %Geo.Point{coordinates: {1.0, 2.2}})
+      end
 
-            # full insert row and read test
-            insert = "INSERT INTO test_types (my_geom) VALUES (ST_GeomFromText(?))"
-            %MyXQL.Result{last_insert_id: id} = query!(c, insert, [wkt])
+      test "MULTIPOINT", c do
+        assert_roundtrip(c, "my_multipoint", %Geo.MultiPoint{
+          coordinates: [{1.0, 1.0}, {2.0, 2.0}]
+        })
+      end
 
-            select = "SELECT * FROM test_types WHERE id = '#{id}'"
-            %MyXQL.Result{rows: [values]} = query!(c, select)
-
-          _ ->
-            c
-        end
+      test "POLYGON", c do
+        assert_roundtrip(c, "my_polygon", %Geo.Polygon{
+          coordinates: [
+            [{35.0, 10.0}, {45.0, 45.0}, {15.0, 40.0}, {10.0, 20.0}, {35.0, 10.0}],
+            [{20.0, 30.0}, {35.0, 35.0}, {30.0, 20.0}, {20.0, 30.0}]
+          ]
+        })
       end
     end
   end
@@ -388,41 +381,7 @@ defmodule MyXQL.Protocol.ValueTest do
 
   defp insert(%{protocol: :text} = c, fields, values) when is_list(fields) and is_list(values) do
     fields = Enum.map_join(fields, ", ", &"`#{&1}`")
-
-    values =
-      Enum.map_join(values, ", ", fn
-        nil ->
-          "NULL"
-
-        true ->
-          "TRUE"
-
-        false ->
-          "FALSE"
-
-        %DateTime{} = datetime ->
-          "'#{NaiveDateTime.to_iso8601(datetime)}'"
-
-        list when is_list(list) ->
-          "'#{Jason.encode!(list)}'"
-
-        %_{} = struct ->
-          "'#{struct}'"
-
-        map when is_map(map) ->
-          "'#{Jason.encode!(map)}'"
-
-        value when is_binary(value) ->
-          "'#{value}'"
-
-        value when is_bitstring(value) ->
-          size = bit_size(value)
-          <<value::size(size)>> = value
-          "B'#{Integer.to_string(value, 2)}'"
-
-        value ->
-          "'#{value}'"
-      end)
+    values = Enum.map_join(values, ", ", &encode_text/1)
 
     %MyXQL.Result{last_insert_id: id} =
       query!(c, "INSERT INTO test_types (#{fields}) VALUES (#{values})")
@@ -442,6 +401,27 @@ defmodule MyXQL.Protocol.ValueTest do
   defp insert(c, field, value) when is_binary(field) do
     insert(c, [field], [value])
   end
+
+  defp encode_text(nil), do: "NULL"
+  defp encode_text(true), do: "TRUE"
+  defp encode_text(false), do: "FALSE"
+  defp encode_text(%DateTime{} = datetime), do: "'#{NaiveDateTime.to_iso8601(datetime)}'"
+  defp encode_text(%Geo.Point{} = geo), do: encode_text_geo(geo)
+  defp encode_text(%Geo.MultiPoint{} = geo), do: encode_text_geo(geo)
+  defp encode_text(%_{} = struct), do: "'#{struct}'"
+  defp encode_text(map) when is_map(map), do: "'#{Jason.encode!(map)}'"
+  defp encode_text(list) when is_list(list), do: "'#{Jason.encode!(list)}'"
+  defp encode_text(value) when is_binary(value), do: "'#{value}'"
+
+  defp encode_text(value) when is_bitstring(value) do
+    size = bit_size(value)
+    <<value::size(size)>> = value
+    "B'#{Integer.to_string(value, 2)}'"
+  end
+
+  defp encode_text(value), do: "'#{value}'"
+
+  defp encode_text_geo(value), do: "ST_GeomFromText('#{Geo.WKT.encode!(value)}')"
 
   defp get(c, fields, id) when is_list(fields) do
     fields = Enum.map_join(fields, ", ", &"`#{&1}`")

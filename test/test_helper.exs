@@ -125,7 +125,10 @@ defmodule TestHelper do
       my_longblob LONGBLOB,
       my_geom GEOMETRY,
       #{if supports_json?(), do: "my_json JSON,", else: ""}
-      my_char CHAR
+      my_char CHAR,
+      my_point POINT,
+      my_multipoint MULTIPOINT,
+      my_polygon POLYGON
     );
 
     DROP PROCEDURE IF EXISTS single_procedure;

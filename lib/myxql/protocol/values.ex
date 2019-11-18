@@ -83,6 +83,7 @@ defmodule MyXQL.Protocol.Values do
   defp column_def_to_type(column_def(type: :mysql_type_string)), do: :binary
   defp column_def_to_type(column_def(type: :mysql_type_bit, length: length)), do: {:bit, length}
   defp column_def_to_type(column_def(type: :mysql_type_null)), do: :null
+  defp column_def_to_type(column_def(type: :mysql_type_geometry)), do: :geometry
 
   # geometry
   defp column_def_to_type(column_def(type: :mysql_type_geometry)), do: :geometry
@@ -174,6 +175,10 @@ defmodule MyXQL.Protocol.Values do
     decode_bit(value, size)
   end
 
+  def decode_text_value(value, :geometry) do
+    decode_geometry(value)
+  end
+
   # Binary values
 
   def encode_binary_value(value)
@@ -219,6 +224,20 @@ defmodule MyXQL.Protocol.Values do
     {:mysql_type_tiny, <<0>>}
   end
 
+  def encode_binary_value(%Geo.Point{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.PointM{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.PointZ{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.PointZM{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.MultiPoint{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.LineString{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.LineStringZ{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.MultiLineString{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.MultiLineStringZ{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.Polygon{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.PolygonZ{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.MultiPolygon{} = geo), do: encode_geometry(geo)
+  def encode_binary_value(%Geo.MultiPolygonZ{} = geo), do: encode_geometry(geo)
+
   def encode_binary_value(term) when is_list(term) or is_map(term) do
     string = json_library().encode!(term)
     {:mysql_type_var_string, encode_string_lenenc(string)}
@@ -226,6 +245,11 @@ defmodule MyXQL.Protocol.Values do
 
   def encode_binary_value(other) do
     raise ArgumentError, "query has invalid parameter #{inspect(other)}"
+  end
+
+  defp encode_geometry(geo) do
+    binary = geo |> Geo.WKB.encode!(:ndr) |> Base.decode16!()
+    {:mysql_type_geometry, encode_string_lenenc(<<0::uint4, binary::binary>>)}
   end
 
   ## Time/DateTime
@@ -311,7 +335,7 @@ defmodule MyXQL.Protocol.Values do
   end
 
   defp decode_binary_row(<<r::bits>>, null_bitmap, [:binary | t], acc),
-    do: decode_string_lenenc(r, null_bitmap, t, acc)
+    do: decode_string_lenenc(r, null_bitmap, t, acc, & &1)
 
   defp decode_binary_row(<<r::bits>>, null_bitmap, [:int1 | t], acc),
     do: decode_int1(r, null_bitmap, t, acc)
@@ -368,128 +392,39 @@ defmodule MyXQL.Protocol.Values do
   defp decode_binary_row(<<r::bits>>, null_bitmap, [{:bit, size} | t], acc),
     do: decode_bit(r, size, null_bitmap, t, acc)
 
+  defp decode_binary_row(<<r::bits>>, null_bitmap, [:geometry | t], acc),
+    do: decode_string_lenenc(r, null_bitmap, t, acc, &decode_geometry/1)
+
   defp decode_binary_row(<<>>, _null_bitmap, [], acc) do
     Enum.reverse(acc)
   end
 
-  @doc """
-  0xFC = 252
-  0xFC = 253
-  0xFE = 254
-  """
-  def decode_geometry_head(<<0xFC, _::uint2, r::bits>>), do: r
-  def decode_geometry_head(<<0xFD, _::uint3, r::bits>>), do: r
-  def decode_geometry_head(<<0xFE, _::uint8, r::bits>>), do: r
-  def decode_geometry_head(<<_lt251::uint1, r::bits>>), do: r
-
-  # https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
-  # Point
-  defp decode_geometry(
-         <<_srid::uint4, 1::uint1, 1::uint4, x::little-float-64, y::little-float-64, r::bits>>,
-         null_bitmap,
-         t,
-         acc
-       ) do
-    v = %MyXQL.Geometry.Point{coordinates: {x, y}, srid: nil}
-    decode_binary_row(r, null_bitmap >>> 1, t, [v | acc])
+  # this looks similar to WKB [1] but instead of:
+  #
+  #     <<byte_order::8, type::32, ...>>
+  #
+  # we have:
+  #
+  #     <<0::32, byte_order::8, type::32, ...>>
+  #
+  # so seems there's some extra padding in front. Maybe it's a 4-byte srid?
+  #
+  # byte_order is allegedly big endian (0x01) but we need to decode floats as little-endian. (lol.)
+  #
+  # Looking at [2]
+  #
+  # > Values should be stored in internal geometry format, but you can convert them to that
+  # > format from either Well-Known Text (WKT) or Well-Known Binary (WKB) format.
+  #
+  # so yeah, looks like mysql might be storing it in an internal format that is not WKB.
+  # There's a ST_ToBinary() function that allegedly returns data in WKB so this might be helpful
+  # for debugging.
+  #
+  # [1] https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry#Well-known_binary
+  # [2] https://dev.mysql.com/doc/refman/8.0/en/populating-spatial-columns.html
+  defp decode_geometry(<<0::uint4, r::bits>>) do
+    r |> Base.encode16() |> Geo.WKB.decode!()
   end
-
-  # Polygon
-  defp decode_geometry(
-         <<srid::uint4, 1::uint1, 3::uint4, num_rings::uint4, rest::bits>>,
-         null_bitmap,
-         t,
-         acc
-       ) do
-    decode_rings(rest, num_rings, {srid, null_bitmap, t, acc}, [])
-  end
-
-  # MultiPolygon
-  defp decode_geometry(
-         <<srid::uint4, 1::uint1, 6::uint4, r::bits>>,
-         null_bitmap,
-         t,
-         acc
-       ) do
-    decode_multipolygon(r, {srid, null_bitmap, t, acc})
-  end
-
-  ### GEOMETRY HELPERS
-
-  # Geometry helpers, inspired (aka copied from) Mariaex. But, dissected and we understand what they do!
-  # Helps to decode a Polygon, which consists of rings that themselves consist of points
-  # defp decode_rings(<<rings_and_rows::bits>>, num_rings, state) do
-  #   decode_rings(rings_and_rows, num_rings, state, [])
-  # end
-
-  defp decode_rings(<<r::bits>>, 0, {_srid, null_bitmap, t, acc}, rings) do
-    v = %MyXQL.Geometry.Polygon{coordinates: Enum.reverse(rings), srid: nil}
-    decode_binary_row(r, null_bitmap, t, [v | acc])
-  end
-
-  defp decode_rings(
-         <<num_points::32-little, points::binary-size(num_points)-unit(128), r::bits>>,
-         num_rings,
-         state,
-         rings
-       ) do
-    points = decode_points(points)
-    decode_rings(r, num_rings - 1, state, [points | rings])
-  end
-
-  defp decode_points(points_binary, points \\ [])
-
-  defp decode_points(<<x::little-float-64, y::little-float-64, r::bits>>, points) do
-    decode_points(r, [{x, y} | points])
-  end
-
-  defp decode_points(<<>>, points), do: Enum.reverse(points)
-
-  # MultiPolygon decoding
-
-  defp decode_multipolygon(<<num_polygons::uint4, r::bits>>, state) do
-    decode_multipolygon(r, num_polygons, state, [])
-  end
-
-  # no more left
-  defp decode_multipolygon(<<r::bits>>, 0, {srid, null_bitmap, t, acc}, polygons) do
-    v = %MyXQL.Geometry.MultiPolygon{coordinates: polygons, srid: srid}
-    decode_binary_row(r, null_bitmap >>> 1, t, [v | acc])
-  end
-
-  # polygons left in MP
-  # 1 is the byte order... 3 is the type
-  defp decode_multipolygon(
-         <<1::uint1, 3::uint4, num_rings::uint4, r::bits>>,
-         num_polygons,
-         state,
-         polygons
-       ) do
-    {r, polygon} = decode_multipolygon_rings(r, num_rings, state, [])
-    decode_multipolygon(r, num_polygons - 1, state, [polygon | polygons])
-  end
-
-  # last ring
-  defp decode_multipolygon_rings(
-         <<rest::bits>>,
-         0,
-         {_, _, _, acc},
-         rings
-       ) do
-    {rest, [Enum.reverse(rings) | acc]}
-  end
-
-  defp decode_multipolygon_rings(
-         <<num_points::32-little, points::binary-size(num_points)-unit(128), rest::bits>>,
-         num_rings,
-         state,
-         rings
-       ) do
-    points = decode_points(points)
-    decode_multipolygon_rings(rest, num_rings - 1, state, [points | rings])
-  end
-
-  # end geometry helpers
 
   defp decode_int1(<<v::int1, r::bits>>, null_bitmap, t, acc),
     do: decode_binary_row(r, null_bitmap >>> 1, t, [v | acc])
@@ -636,18 +571,36 @@ defmodule MyXQL.Protocol.Values do
     }
   end
 
-  defp decode_string_lenenc(<<n::uint1, v::string(n), r::bits>>, null_bitmap, t, acc)
+  defp decode_string_lenenc(<<n::uint1, v::string(n), r::bits>>, null_bitmap, t, acc, decoder)
        when n < 251,
-       do: decode_binary_row(r, null_bitmap >>> 1, t, [v | acc])
+       do: decode_binary_row(r, null_bitmap >>> 1, t, [decoder.(v) | acc])
 
-  defp decode_string_lenenc(<<0xFC, n::uint2, v::string(n), r::bits>>, null_bitmap, t, acc),
-    do: decode_binary_row(r, null_bitmap >>> 1, t, [v | acc])
+  defp decode_string_lenenc(
+         <<0xFC, n::uint2, v::string(n), r::bits>>,
+         null_bitmap,
+         t,
+         acc,
+         decoder
+       ),
+       do: decode_binary_row(r, null_bitmap >>> 1, t, [decoder.(v) | acc])
 
-  defp decode_string_lenenc(<<0xFD, n::uint3, v::string(n), r::bits>>, null_bitmap, t, acc),
-    do: decode_binary_row(r, null_bitmap >>> 1, t, [v | acc])
+  defp decode_string_lenenc(
+         <<0xFD, n::uint3, v::string(n), r::bits>>,
+         null_bitmap,
+         t,
+         acc,
+         decoder
+       ),
+       do: decode_binary_row(r, null_bitmap >>> 1, t, [decoder.(v) | acc])
 
-  defp decode_string_lenenc(<<0xFE, n::uint8, v::string(n), r::bits>>, null_bitmap, t, acc),
-    do: decode_binary_row(r, null_bitmap >>> 1, t, [v | acc])
+  defp decode_string_lenenc(
+         <<0xFE, n::uint8, v::string(n), r::bits>>,
+         null_bitmap,
+         t,
+         acc,
+         decoder
+       ),
+       do: decode_binary_row(r, null_bitmap >>> 1, t, [decoder.(v) | acc])
 
   defp decode_json(<<n::uint1, v::string(n), r::bits>>, null_bitmap, t, acc) when n < 251,
     do: decode_binary_row(r, null_bitmap >>> 1, t, [decode_json(v) | acc])
