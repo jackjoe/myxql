@@ -283,6 +283,15 @@ defmodule MyXQL.Protocol.ValueTest do
           coordinates: [{1.0, 1.0}, {2.0, 2.0}]
         })
       end
+
+      test "POLYGON", c do
+        assert_roundtrip(c, "my_polygon", %Geo.Polygon{
+          coordinates: [
+            [{35.0, 10.0}, {45.0, 45.0}, {15.0, 40.0}, {10.0, 20.0}, {35.0, 10.0}],
+            [{20.0, 30.0}, {35.0, 35.0}, {30.0, 20.0}, {20.0, 30.0}]
+          ]
+        })
+      end
     end
   end
 
